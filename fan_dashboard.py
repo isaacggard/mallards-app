@@ -454,7 +454,10 @@ def zip_map_figure(data: pd.DataFrame) -> go.Figure:
                 color=data["fans"],
                 colorscale=[[0, "#66baf2"], [0.5, "#ffd552"], [1, "#4caf50"]],
                 showscale=True,
-                colorbar=dict(title="Fans", tickfont=dict(color="#f4f1e7"), titlefont=dict(color="#f4f1e7")),
+                colorbar=dict(
+                    title=dict(text="Fans", font=dict(color="#f4f1e7")),
+                    tickfont=dict(color="#f4f1e7"),
+                ),
                 opacity=0.82,
             ),
             text=data["CLEAN_ZIP"],

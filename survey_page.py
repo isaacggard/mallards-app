@@ -70,6 +70,60 @@ def _load_local_surveys() -> list[tuple[str, bytes]]:
     return sources
 
 
+@st.cache_data(show_spinner=False)
+def _run_survey_analysis_cached(
+    survey_files: tuple[tuple[str, bytes, str | None, str | None, int | None], ...],
+    review_columns: tuple[str, ...],
+    rating_columns: tuple[str, ...],
+) -> dict[str, object]:
+    frames: list[pd.DataFrame] = []
+    for filename, payload, kind, team, year in survey_files:
+        frame = load_survey_workbook(
+            filename,
+            payload,
+            kind=kind,
+            team=team,
+            year=year,
+        )
+        if not frame.empty:
+            frames.append(frame)
+
+    if not frames:
+        return {
+            "long_df": pd.DataFrame(),
+            "response_df": pd.DataFrame(),
+            "summaries": summarize_surveys(pd.DataFrame()),
+            "matched_review": [],
+            "matched_rating": [],
+        }
+
+    combined_wide = pd.concat(frames, ignore_index=True, sort=False)
+    matched_review, matched_rating = resolve_sentiment_columns(
+        combined_wide,
+        review_columns=list(review_columns),
+        rating_columns=list(rating_columns),
+    )
+    response_df = score_response_sentiment(
+        combined_wide,
+        review_columns=list(review_columns),
+        rating_columns=list(rating_columns),
+    )
+    long_df = build_survey_long(
+        frames,
+        review_columns=list(review_columns),
+        rating_columns=list(rating_columns),
+    )
+    long_df = score_sentiment(long_df)
+
+    return {
+        "long_df": long_df,
+        "response_df": response_df,
+        "summaries": summarize_surveys(long_df),
+        "matched_review": matched_review,
+        "matched_rating": matched_rating,
+    }
+
+
 def render_survey_page() -> None:
     brand_header(
         "Survey Insights",
@@ -77,8 +131,12 @@ def render_survey_page() -> None:
         "Postgame and postseason survey sentiment, topics, and opportunities",
     )
 
-    default_review_text = "\n".join(DEFAULT_REVIEW_COLUMNS)
-    default_rating_text = "\n".join(DEFAULT_RATING_COLUMNS)
+    if "survey_review_columns_text" not in st.session_state:
+        st.session_state["survey_review_columns_text"] = "\n".join(DEFAULT_REVIEW_COLUMNS)
+    if "survey_rating_columns_text" not in st.session_state:
+        st.session_state["survey_rating_columns_text"] = "\n".join(DEFAULT_RATING_COLUMNS)
+    if "survey_uploaded_sources" not in st.session_state:
+        st.session_state["survey_uploaded_sources"] = []
 
     section_label("Survey Workbooks")
     use_local = False
@@ -87,11 +145,25 @@ def render_survey_page() -> None:
             "Upload survey workbooks (.xlsx)",
             type=["xlsx"],
             accept_multiple_files=True,
+            key="survey_uploads",
         )
 
         with st.expander("Load bundled survey files (local project)"):
             st.caption("Uses the files under post_game_surveys/ and post_season_surveys/ if available.")
             use_local = st.button("Use bundled surveys", type="secondary")
+
+        if st.button("Clear Survey Data", key="clear-survey-data", use_container_width=True):
+            for key in [
+                "survey_uploaded_sources",
+                "survey_long",
+                "survey_response_df",
+                "survey_summaries",
+                "survey_column_config",
+                "survey_upload_signature",
+                "survey_uploads",
+            ]:
+                st.session_state.pop(key, None)
+            st.rerun()
 
     section_label("Sentiment Configuration")
     with st.container(border=True):
@@ -99,23 +171,24 @@ def render_survey_page() -> None:
         with config_cols[0]:
             review_columns_text = st.text_area(
                 "Review Columns",
-                value=default_review_text,
                 help="List one review-style survey question per line.",
                 height=180,
+                key="survey_review_columns_text",
             )
         with config_cols[1]:
             rating_columns_text = st.text_area(
                 "Rating Columns",
-                value=default_rating_text,
                 help="List one rating-style survey question per line.",
                 height=180,
+                key="survey_rating_columns_text",
             )
 
-    sources: list[tuple[str, bytes]]
     if use_local:
-        sources = _load_local_surveys()
-    else:
-        sources = [(upload.name, upload.getvalue()) for upload in uploads]
+        st.session_state["survey_uploaded_sources"] = _load_local_surveys()
+    elif uploads:
+        st.session_state["survey_uploaded_sources"] = [(upload.name, upload.getvalue()) for upload in uploads]
+
+    sources: list[tuple[str, bytes]] = st.session_state.get("survey_uploaded_sources", [])
 
     config_signature = (
         tuple((name, len(payload)) for name, payload in sources),
@@ -180,47 +253,28 @@ def render_survey_page() -> None:
         review_columns = parse_configured_columns(review_columns_text)
         rating_columns = parse_configured_columns(rating_columns_text)
 
-        frames: list[pd.DataFrame] = []
-        for (filename, payload), classification in zip(sources, classifications):
-            if classification.kind is None:
-                continue
-            frame = load_survey_workbook(
-                filename,
-                payload,
-                kind=classification.kind,
-                team=classification.team,
-                year=classification.year,
-            )
-            if not frame.empty:
-                frames.append(frame)
+        survey_files = tuple(
+            (filename, payload, classification.kind, classification.team, classification.year)
+            for (filename, payload), classification in zip(sources, classifications)
+            if classification.kind is not None
+        )
+        analysis_result = _run_survey_analysis_cached(
+            survey_files,
+            tuple(review_columns),
+            tuple(rating_columns),
+        )
 
-        if not frames:
+        long_df = analysis_result["long_df"]
+        response_df = analysis_result["response_df"]
+        if long_df.empty or response_df.empty:
             st.warning("No usable survey responses were found in the uploaded workbooks.")
         else:
-            combined_wide = pd.concat(frames, ignore_index=True, sort=False)
-            matched_review, matched_rating = resolve_sentiment_columns(
-                combined_wide,
-                review_columns=review_columns,
-                rating_columns=rating_columns,
-            )
-            response_df = score_response_sentiment(
-                combined_wide,
-                review_columns=review_columns,
-                rating_columns=rating_columns,
-            )
-            long_df = build_survey_long(
-                frames,
-                review_columns=review_columns,
-                rating_columns=rating_columns,
-            )
-            long_df = score_sentiment(long_df)
-
             st.session_state["survey_long"] = long_df
             st.session_state["survey_response_df"] = response_df
-            st.session_state["survey_summaries"] = summarize_surveys(long_df)
+            st.session_state["survey_summaries"] = analysis_result["summaries"]
             st.session_state["survey_column_config"] = {
-                "review": matched_review,
-                "rating": matched_rating,
+                "review": analysis_result["matched_review"],
+                "rating": analysis_result["matched_rating"],
             }
 
     if "survey_long" not in st.session_state or "survey_response_df" not in st.session_state:

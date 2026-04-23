@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover
     TfidfVectorizer = None  # type: ignore[assignment]
 
 
-POSTGAME_HINTS = [ # THESE NEED TO CHANGE
+POSTGAME_HINTS = [
     "rank your experience",
     "date of the game you attended",
     "order food and beverages",
@@ -24,7 +24,7 @@ POSTGAME_HINTS = [ # THESE NEED TO CHANGE
     "promotional ideas",
 ]
 
-POSTSEASON_HINTS = [ # THESE NEED TO CHANGE
+POSTSEASON_HINTS = [
     "post season",
     "cleanliness of the stadium",
     "ballpark cleanliness issues",
