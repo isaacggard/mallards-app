@@ -164,7 +164,29 @@ def render_survey_page() -> None:
             ]:
                 st.session_state.pop(key, None)
             st.rerun()
-
+    st.markdown(
+        """
+        <style>
+        /* Target ONLY the two specific text areas using their keys */
+        textarea[data-testid="stTextArea"][id="survey_review_columns_text"] {
+            color: white !important;
+            background-color: #1e1e1e !important;
+        }
+    
+        textarea[data-testid="stTextArea"][id="survey_rating_columns_text"] {
+            color: white !important;
+            background-color: #1e1e1e !important;
+        }
+    
+        /* Also make their labels white */
+        label[for="survey_review_columns_text"],
+        label[for="survey_rating_columns_text"] {
+            color: white !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     section_label("Sentiment Configuration")
     with st.container(border=True):
         config_cols = st.columns(2)
