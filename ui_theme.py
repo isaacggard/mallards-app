@@ -482,17 +482,19 @@ def brand_header(kicker: str, title_html: str, subline: str) -> None:
     )
 
 
-def _render_sidebar_button(label: str, target: str) -> None:
-    if st.button(label, key=f"nav-{target}", use_container_width=True):
-        st.switch_page(target)
+def go_to_page(page_key: str) -> None:
+    st.session_state["active_page"] = page_key
+    st.rerun()
 
 
-def render_sidebar_nav(current_page: str) -> None:
+def render_sidebar_nav(current_page: str) -> str:
     nav_items = [
-        ("builder", "Fan Master Builder", "app.py"),
-        ("dashboard", "Fan Dashboard", "pages/1_Fan_Dashboard.py"),
-        ("survey", "Survey Insights", "pages/2_Survey_Insights.py"),
+        ("builder", "Fan Master Builder"),
+        ("dashboard", "Fan Dashboard"),
+        ("survey", "Survey Insights"),
     ]
+
+    requested_page = current_page
 
     with st.sidebar:
         st.markdown(
@@ -504,22 +506,16 @@ def render_sidebar_nav(current_page: str) -> None:
             """,
             unsafe_allow_html=True,
         )
+        for key, label in nav_items:
+            if key == current_page:
+                st.markdown(
+                    f'<div class="sidebar-nav-active">{html.escape(label)}</div>',
+                    unsafe_allow_html=True,
+                )
+            elif st.button(label, key=f"nav-{key}", use_container_width=True):
+                requested_page = key
 
-        try:
-            for _, label, target in nav_items:
-                st.page_link(target, label=label)
-        except KeyError as exc:
-            if exc.args != ("url_pathname",):
-                raise
-
-            for key, label, target in nav_items:
-                if key == current_page:
-                    st.markdown(
-                        f'<div class="sidebar-nav-active">{html.escape(label)}</div>',
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    _render_sidebar_button(label, target)
+    return requested_page
 
 
 def section_label(label: str) -> None:

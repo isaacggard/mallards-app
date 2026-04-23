@@ -1,6 +1,11 @@
-pandas
-streamlit
-plotly
+google-search-results
+numpy
 openpyxl
-vaderSentiment
+pandas
+plotly
+pulp
+requests
 scikit-learn
+snowflake-snowpark-python
+streamlit==1.41.1
+vaderSentiment
