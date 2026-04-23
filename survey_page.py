@@ -186,7 +186,7 @@ def render_survey_page() -> None:
         </style>
         """,
         unsafe_allow_html=True
-    )
+)
     section_label("Sentiment Configuration")
     with st.container(border=True):
         config_cols = st.columns(2)
