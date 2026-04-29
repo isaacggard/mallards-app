@@ -78,6 +78,19 @@ def filter_topic_team_year(
     return filtered
 
 
+def filter_topic_summary(
+    chart_df: pd.DataFrame,
+    selected_team: str,
+    selected_year: str,
+) -> pd.DataFrame:
+    filtered = chart_df
+    if "team" in filtered.columns:
+        filtered = filtered[filtered["team"].astype(str).eq(selected_team)]
+    if "survey_year" in filtered.columns:
+        filtered = filtered[filtered["survey_year"].astype(str).eq(selected_year)]
+    return filtered
+
+
 def render_bar_chart(
     title: str,
     chart_df: pd.DataFrame,
@@ -183,10 +196,6 @@ def render_recent_postgame(metrics: dict) -> None:
 
     with st.container(border=True):
         st.subheader(summary["label"])
-        st.caption(
-            f"{summary.get('team', 'Unknown')} | "
-            f"{summary.get('survey_year', 'Unknown')}"
-        )
 
         col1, col2, col3, col4 = st.columns(4)
         render_metric_card(
@@ -296,10 +305,18 @@ def render_historical_analysis(metrics: dict) -> None:
         selected_team,
         selected_year,
     )
-    topic_text_summary = filter_topic_team_year(
+    topic_text_summary = filter_topic_summary(
         charts["topic_text_summary"],
         selected_team,
         selected_year,
+    )
+    negative_rate_by_topic = topic_text_summary.sort_values(
+        "negative_rate",
+        ascending=False,
+    )
+    sentiment_by_topic = topic_text_summary.sort_values(
+        "sentiment_index",
+        ascending=False,
     )
 
     row1_col1, row1_col2 = st.columns(2)
@@ -361,7 +378,7 @@ def render_historical_analysis(metrics: dict) -> None:
     with row3_col1:
         render_bar_chart(
             "Negative Rate by Category",
-            topic_text_summary,
+            negative_rate_by_topic,
             "topic",
             "negative_rate",
             "Survey Category",
@@ -373,7 +390,7 @@ def render_historical_analysis(metrics: dict) -> None:
     with row3_col2:
         render_bar_chart(
             "Sentiment by Category",
-            topic_text_summary,
+            sentiment_by_topic,
             "topic",
             "sentiment_index",
             "Survey Category",
